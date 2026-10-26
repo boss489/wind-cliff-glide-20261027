@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101c32"><title>바람절벽 활공</title><link rel="stylesheet" href="style.css"></head>
+<body><main class="shell">
+<header><div class="brand"><span class="mark">◇</span><div><small>하늘에 새긴 길</small><h1>바람절벽 활공</h1></div></div><button id="pause" class="text-button" aria-label="일시정지" hidden>Ⅱ <span>일시정지</span></button></header>
+<section class="hud" aria-label="비행 정보"><div><small>협곡</small><strong id="stage">01 / 24</strong></div><div><small>남은 시간</small><strong id="time">60.0초</strong></div><div><small>확정 점수</small><strong id="bank">0</strong></div><div><small>스침 · 미확정</small><strong id="pending">+0</strong></div><div class="wind-meter"><small>저장 기류</small><strong id="charge">비어 있음</strong></div></section>
+<div class="scene"><canvas id="game" aria-label="협곡 비행 화면" tabindex="0"></canvas><div class="scene-label" id="sceneLabel">↓ 출구를 향해 활공</div><div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="overlayTitle"><div class="panel" id="panel"></div></div></div>
+<div class="controls" aria-label="터치 조작"><button id="left" aria-label="왼쪽 조향">◀ <span>왼쪽</span></button><button id="burst" class="burst" aria-label="저장 기류 해제">✦ <span>기류 해제</span></button><button id="right" aria-label="오른쪽 조향"><span>오른쪽</span> ▶</button></div>
+<footer><span>← → / A D 조향　·　Space 기류 해제　·　P 일시정지</span><span>벽에 가까울수록 높은 점수 · 벗어나야 확정</span></footer>
+</main><script src="game.js"></script><script src="app.js"></script></body></html>
