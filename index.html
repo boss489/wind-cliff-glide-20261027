@@ -86,10 +86,11 @@
 
     <div class="scene" id="sceneContainer">
       <canvas id="game" aria-label="협곡 비행 화면" tabindex="0"></canvas>
-      <div class="scene-hud" aria-hidden="true">
+      <div class="scene-hud">
         <div class="scene-label" id="sceneLabel">↓ 출구를 향해 활공</div>
-        <div class="wind-indicator" id="windIndicator" hidden></div>
+        <div class="wind-indicator" id="windIndicator" aria-hidden="true" hidden></div>
       </div>
+      <div class="visually-hidden" id="sceneAnnouncement" role="status" aria-live="polite" aria-atomic="true"></div>
       <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="overlayTitle">
         <div class="panel" id="panel"></div>
       </div>

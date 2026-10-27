@@ -538,6 +538,7 @@
 
     // Scene top label & lateral wind badge
     const sLabel = $('sceneLabel');
+    const previousSceneState = sLabel.dataset.state;
     if (mode !== 'playing') {
       sLabel.textContent = '↓ 출구를 향해 활공';
       sLabel.dataset.state = 'normal';
@@ -559,6 +560,11 @@
       const remM = Math.max(0, Math.round((G.END_Y - state.y) / 10));
       sLabel.textContent = remM <= 45 ? `🏁 출구 관문 ${remM}m 앞!` : '↓ 출구를 향해 활공';
       sLabel.dataset.state = 'normal';
+    }
+    // Announce status transitions, not every frame's changing score or distance.
+    const announcement = $('sceneAnnouncement');
+    if (announcement && sLabel.dataset.state !== previousSceneState) {
+      announcement.textContent = mode === 'playing' ? sLabel.textContent : '';
     }
 
     const wInd = $('windIndicator');
