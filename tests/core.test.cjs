@@ -8,6 +8,54 @@ vm.runInContext(source, context);
 const G = context.globalThis.WindCliffCore;
 function test(name, fn) { fn(); console.log('✓', name); }
 const input = { steer: 0, release: false };
+test('normal descent advances exactly 11 per tick while lift still slows descent', () => {
+  const normal = G.create(1), lifted = G.create(1);
+  lifted.lift = 2;
+  G.step(normal, input); G.step(lifted, input);
+  assert.equal(normal.y - 55, 11);
+  assert.ok(lifted.y - 55 < normal.y - 55);
+});
+test('held boost advances exactly 15 per tick and release returns to 11', () => {
+  const s = G.create(1);
+  G.step(s, { boost: true });
+  assert.equal(s.y - 55, 15);
+  G.step(s, input);
+  assert.equal(s.y - 70, 11);
+});
+test('held boost descends faster and doubles near-wall provisional score', () => {
+  const normal = G.create(1), boosted = G.create(1);
+  for (const s of [normal, boosted]) s.x = G.canyon(s.level, s.y).left + G.RADIUS + 36;
+  G.step(normal, input); G.step(boosted, { steer: 0, boost: true });
+  assert.ok(boosted.y > normal.y);
+  assert.equal(boosted.pending, normal.pending * 2);
+  assert.equal(boosted.bank, 0);
+  boosted.x = G.canyon(boosted.level, boosted.y).center;
+  boosted.vx = 0;
+  G.step(boosted, input);
+  assert.equal(boosted.bank, normal.pending * 2);
+});
+test('boost does not add points in the center or bypass failed-flight cancellation', () => {
+  const s = G.create(1);
+  G.step(s, { boost: true });
+  assert.equal(s.pending, 0);
+  assert.equal(s.bank, 0);
+  s.x = G.canyon(s.level, s.y).left + G.RADIUS + 36;
+  G.step(s, { boost: true });
+  assert.ok(s.pending > 0);
+  s.x = G.canyon(s.level, s.y).left + G.RADIUS;
+  G.step(s, { boost: true });
+  assert.equal(s.status, 'failed');
+  assert.equal(s.pending, 0);
+  assert.equal(s.bank, 0);
+});
+test('canyon turns are 15 percent sharper than authored offsets', () => {
+  const expected = [274, 256, 240, 268, 248, 228];
+  for (const i of [0, 5, 8, 15, 23]) {
+    const band = Math.floor(i / 8);
+    assert.equal(G.levels[i].width, expected[i % 6] - band * 5);
+    assert.equal(G.levels[i].turns[1], [10, -45, 55, -40, -100][[0, 5, 8, 15, 23].indexOf(i)] * 1.15);
+  }
+});
 test('24 structurally different fixed canyon paths and safe sampled center', () => {
   assert.equal(G.levels.length, 24);
   assert.equal(new Set(G.levels.map(l => JSON.stringify(l.turns))).size, 24);
@@ -15,7 +63,7 @@ test('24 structurally different fixed canyon paths and safe sampled center', () 
     assert.equal(l.turns.length, 10);
     for (let y = 0; y <= G.END_Y; y += 15) {
       const c = G.canyon(l, y);
-      assert.ok(c.right - c.left >= 200, `${i + 1} ${y}`);
+      assert.ok(c.right - c.left >= 180, `${i + 1} ${y}`);
       assert.ok(c.center > c.left + G.RADIUS && c.center < c.right - G.RADIUS);
     }
     assert.equal(l.hazards.length > 0, i >= 14);
@@ -61,19 +109,61 @@ test('near-wall score banks only after leaving proximity', () => {
   assert.ok(s.bank > 0); assert.equal(s.pending, 0);
 });
 test('exit succeeds and timeout fails', () => {
-  const s = G.create(1, 2); s.y = G.END_Y - 1;
+  const s = G.create(24, 2); s.y = G.END_Y - 1;
   s.x = G.canyon(s.level, s.y).center;
   G.step(s, input); assert.equal(s.status, 'won');
   const t = G.create(1, 2); t.ticks = 3599;
   G.step(t, input); assert.equal(t.status, 'failed');
 });
+test('intermediate gate preserves the same flight position, momentum, charge and bank', () => {
+  const s = G.create(1);
+  s.y = G.END_Y - 3; s.x = 450; s.vx = 2; s.bank = 40; s.charge = 1;
+  G.step(s, { boost: true });
+  assert.equal(s.status, 'playing');
+  assert.equal(s.level.id, 2);
+  assert.equal(s.completedLevel, 1);
+  assert.equal(s.originY, G.END_Y);
+  assert.equal(s.y, G.END_Y + 12);
+  assert.ok(s.vx > 0);
+  assert.equal(s.bank, 40);
+  assert.equal(s.charge, 1);
+  assert.equal(s.ticks, 0);
+  G.step(s, { boost: true });
+  assert.equal(s.y, G.END_Y + 27);
+  assert.equal(s.completedLevel, 0);
+});
+test('one uninterrupted flight can clear all 24 gates without recreating the player', () => {
+  const s = G.create(1, 41), completed = [];
+  let previousY = s.y;
+  while (s.status === 'playing' && completed.length < 24) {
+    const ahead = G.canyonAt(s, Math.min(s.originY + G.END_Y, s.y + 85)).center;
+    G.step(s, { steer: Math.abs(ahead - s.x) < 8 ? 0 : Math.sign(ahead - s.x) });
+    assert.ok(s.y > previousY);
+    previousY = s.y;
+    if (s.completedLevel) completed.push(s.completedLevel);
+    assert.ok(s.y < 24 * G.END_Y + 30, 'flight should finish');
+  }
+  assert.equal(s.status, 'won');
+  assert.equal(completed.join(','), G.levels.map(l => l.id).join(','));
+  assert.equal(s.originY, 23 * G.END_Y);
+});
 test('all 24 canyon centerline routes reach exit', () => {
   G.levels.forEach((_, n) => {
     const s = G.create(n + 1, n + 11);
-    while (s.status === 'playing' && s.ticks < 3600) {
-      const ahead = G.canyon(s.level, Math.min(G.END_Y, s.y + 85)).center;
+    while (s.status === 'playing' && s.level.id === n + 1 && s.ticks < 3600) {
+      const ahead = G.canyonAt(s, Math.min(s.originY + G.END_Y, s.y + 85)).center;
       G.step(s, { steer: Math.abs(ahead - s.x) < 8 ? 0 : Math.sign(ahead - s.x), release: false });
     }
-    assert.equal(s.status, 'won', `level ${n + 1} tick ${s.ticks} y ${s.y} x ${s.x}`);
+    assert.equal(s.completedLevel, n + 1, `level ${n + 1} tick ${s.ticks} y ${s.y} x ${s.x}`);
+  });
+});
+test('all 24 canyon centerline routes remain finishable while boosting', () => {
+  G.levels.forEach((_, n) => {
+    const s = G.create(n + 1, n + 11);
+    while (s.status === 'playing' && s.level.id === n + 1 && s.ticks < 3600) {
+      const ahead = G.canyonAt(s, Math.min(s.originY + G.END_Y, s.y + 180)).center;
+      G.step(s, { steer: Math.abs(ahead - s.x) < 8 ? 0 : Math.sign(ahead - s.x), boost: true });
+    }
+    assert.equal(s.completedLevel, n + 1, `boosted level ${n + 1} tick ${s.ticks} y ${s.y} x ${s.x}`);
   });
 });

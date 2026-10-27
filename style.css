@@ -765,7 +765,7 @@ canvas {
 /* Bottom Touch Controls */
 .controls {
   display: grid;
-  grid-template-columns: 1fr 1.18fr 1fr;
+  grid-template-columns: 1fr 1.12fr 1.12fr 1fr;
   gap: 9px;
   width: 100%;
   max-width: 680px;
@@ -860,6 +860,22 @@ canvas {
 .controls .burst:disabled .ctrl-icon {
   color: var(--text-muted);
 }
+
+.controls .boost {
+  background: linear-gradient(180deg, #8c4222 0%, #582717 100%);
+  border-color: #f7a660;
+  color: #fff4df;
+}
+
+.controls .boost .ctrl-icon { color: #ffd382; }
+
+.controls .boost.active {
+  background: linear-gradient(180deg, #c36022 0%, #87330d 100%);
+  border-color: #ffe4a4;
+  box-shadow: 0 0 20px rgba(255, 137, 43, 0.4);
+}
+
+.controls .boost:disabled { opacity: 0.48; cursor: not-allowed; }
 
 /* Footer */
 .bottombar {
@@ -1064,7 +1080,14 @@ canvas {
 
   .controls {
     gap: 6px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas: "left right" "wind boost";
   }
+
+  #left { grid-area: left; }
+  #right { grid-area: right; }
+  #burst { grid-area: wind; }
+  #boost { grid-area: boost; }
 
   .controls button {
     min-height: 60px;

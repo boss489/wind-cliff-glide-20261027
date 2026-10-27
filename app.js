@@ -30,7 +30,7 @@
   let mode = 'menu';
   let paused = false;
 
-  let keys = new Set(), pointers = new Map(), mouseDirection = 0, releaseQueued = false;
+  let keys = new Set(), pointers = new Map(), boostPointers = new Set(), mouseDirection = 0, releaseQueued = false;
   let last = 0, accumulator = 0, sound;
   let soundEnabled = true;
   let reducedMotion = Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -190,7 +190,7 @@
     mode = 'tutorial';
     show(`
       <span class="eyebrow">비행 수첩 · FLIGHT RULES</span>
-      <h2 id="overlayTitle">세 가지 비행 규칙</h2>
+      <h2 id="overlayTitle">네 가지 비행 규칙</h2>
       <div class="tutorial-steps">
         <div>
           <strong class="step-title">01 · 조향과 충돌 윤곽</strong>
@@ -204,8 +204,12 @@
           <strong class="step-title">03 · 벽 스침과 점수 확정</strong>
           암벽 안쪽 <b>주황색 스침 구간</b>을 날면 임시 점수가 쌓입니다. 단, <b>협곡 중앙으로 멀어져야 확정</b>되며 추락·출구 통과 시 임시 점수는 사라집니다.
         </div>
+        <div>
+          <strong class="step-title">04 · 급강하 부스트</strong>
+          <b>B 또는 별도 급강하 부스트 버튼을 누르고 있으면</b> 하강 속도가 빨라집니다. 부스트 중 암벽 스침 임시 점수는 <b>2배</b>이며, 안전 거리로 벗어나야 확정됩니다. 기류 부양 중에는 부양이 우선합니다.
+        </div>
       </div>
-      <p class="muted">60초 안에 아래쪽 황금 출구 도착 · 1–6 고요, 7–14 맥동풍, 15–24 횡풍과 이동 바위</p>
+      <p class="muted">각 협곡을 돌파하면 멈추지 않고 다음 협곡으로 자동 진입합니다. 24번 완주 시 결과 화면이 표시됩니다.<br>60초 안에 아래쪽 황금 출구 도착 · 1–6 고요, 7–14 맥동풍, 15–24 횡풍과 이동 바위</p>
       <div class="actions">
         ${button('이해했어요 · 시작', 'start', true)}
         ${button('돌아가기', 'menu')}
@@ -256,6 +260,7 @@
     state = G.create(selected);
     keys.clear();
     pointers.clear();
+    boostPointers.clear();
     mouseDirection = 0;
     releaseQueued = false;
     accumulator = 0;
@@ -276,10 +281,11 @@
   function pause() {
     if (mode !== 'playing') return;
     paused = !paused;
+    if (paused) { boostPointers.clear(); keys.delete('KeyB'); }
     setPauseButtonState(true, paused);
     playSfx('ui');
     if (paused) {
-      const progPct = Math.min(100, Math.round((state.y / G.END_Y) * 100));
+      const progPct = Math.min(100, Math.round(((state.y - state.originY) / G.END_Y) * 100));
       show(`
         <span class="eyebrow">잠시 숨 고르기 · PAUSED</span>
         <h2 id="overlayTitle">일시정지</h2>
@@ -302,41 +308,53 @@
     }
   }
 
-  function finish() {
-    mode = 'result';
-    setPauseButtonState(false, false);
-    keys.clear();
-    pointers.clear();
-    for (const id of ['left', 'right', 'burst']) $(id)?.classList.remove('active');
+  function recordGate(levelNumber) {
+    if (levelNumber === unlocked && unlocked < 24) unlocked++;
+    const prevBest = bestScores[levelNumber] || 0;
+    bestScores[levelNumber] = Math.max(prevBest, state.bank);
+    saveStore(unlocked, bestScores);
+    playSfx('win');
+    if (state.status === 'playing') {
+      selected = state.level.id;
+      popups.push({ x: state.x, y: state.y - 18, text: `${String(selected).padStart(2, '0')}번 협곡 진입!`, color: 'rgba(122, 247, 216, ALPHA)', life: 90, maxLife: 90 });
+      $('sceneAnnouncement').textContent = `${selected}번 협곡 진입. 같은 비행 계속.`;
+    }
+  }
 
+  function finish(isNewRecord = false) {
     if (state.status === 'won') {
-      if (selected === unlocked && unlocked < 24) unlocked++;
-      const prevBest = bestScores[selected] || 0;
-      const isNewRecord = state.bank > prevBest;
-      if (state.bank >= prevBest) bestScores[selected] = Math.max(prevBest, state.bank);
-      saveStore(unlocked, bestScores);
-      playSfx('win');
+      mode = 'result';
+      setPauseButtonState(false, false);
+      keys.clear();
+      pointers.clear();
+      boostPointers.clear();
+      for (const id of ['left', 'right', 'burst', 'boost']) $(id)?.classList.remove('active');
       const nearText = state.bestNear < 900 ? `${Math.max(1, Math.round(state.bestNear))}m` : '중앙 안전 비행';
       show(`
         <span class="eyebrow">협곡 ${String(selected).padStart(2, '0')} 돌파 · CLEARED</span>
         <h2 id="overlayTitle">출구 도착!</h2>
-        <p>${selected === 24 ? '24개 모든 협곡을 완주했습니다!' : '협곡 아래 출구 관문을 무사히 통과했습니다.'} ${isNewRecord ? '<b>(최고 기록 경신!)</b>' : ''}</p>
+        <p>24개 모든 협곡을 완주했습니다! ${isNewRecord ? '<b>(최고 기록 경신!)</b>' : ''}</p>
         <div class="result-stats">
           <div class="stat-item"><small>확정 점수</small><strong>${state.bank.toLocaleString('ko-KR')}</strong></div>
           <div class="stat-item"><small>비행 시간</small><strong>${(state.ticks / 60).toFixed(1)}초</strong></div>
           <div class="stat-item"><small>최접근 스침</small><strong>${nearText}</strong></div>
         </div>
-        <p class="muted">${selected === 24 ? '원하는 협곡을 다시 선택해 최고 점수에 도전해 보세요.' : `${String(Math.min(24, selected + 1)).padStart(2, '0')}번 협곡 항로가 열렸습니다.`}</p>
+        <p class="muted">원하는 협곡을 다시 선택해 최고 점수에 도전해 보세요.</p>
         <div class="actions">
-          ${selected < 24 ? button('다음 협곡', 'next', true) : button('다시 비행', 'restart', true)}
-          ${button('다시 도전', 'restart')}
+          ${button('다시 비행', 'restart', true)}
           ${button('협곡 지도', 'levels')}
         </div>
       `);
     } else {
+      mode = 'result';
+      setPauseButtonState(false, false);
+      keys.clear();
+      pointers.clear();
+      boostPointers.clear();
+      for (const id of ['left', 'right', 'burst', 'boost']) $(id)?.classList.remove('active');
       crashFlashTicks = 24;
       playSfx('crash');
-      const progPct = Math.min(99, Math.round((state.y / G.END_Y) * 100));
+      const progPct = Math.min(99, Math.round(((state.y - state.originY) / G.END_Y) * 100));
       show(`
         <span class="eyebrow">협곡 ${String(selected).padStart(2, '0')} · 비행 종료</span>
         <h2 id="overlayTitle">다시 바람을 타요</h2>
@@ -371,7 +389,6 @@
     if (!action) return;
     playSfx('ui');
     if (action === 'start' || action === 'restart') start();
-    else if (action === 'next') { selected = Math.min(24, selected + 1); start(); }
     else if (action === 'menu') menu();
     else if (action === 'levels') levelMenu();
     else if (action === 'tutorial') tutorial();
@@ -391,7 +408,7 @@
   });
 
   window.addEventListener('keydown', e => {
-    if (['ArrowLeft', 'ArrowRight', 'Space', 'KeyA', 'KeyD', 'KeyP', 'Escape'].includes(e.code)) e.preventDefault();
+    if (['ArrowLeft', 'ArrowRight', 'Space', 'KeyA', 'KeyD', 'KeyB', 'KeyP', 'Escape'].includes(e.code)) e.preventDefault();
     if (e.repeat && ['Space', 'KeyP', 'Escape'].includes(e.code)) return;
     keys.add(e.code);
     if (e.code === 'Space' && mode === 'playing' && !paused) releaseQueued = true;
@@ -403,17 +420,20 @@
   window.addEventListener('blur', () => {
     keys.clear();
     pointers.clear();
+    boostPointers.clear();
     mouseDirection = 0;
-    for (const id of ['left', 'right', 'burst']) $(id)?.classList.remove('active');
+    for (const id of ['left', 'right', 'burst', 'boost']) $(id)?.classList.remove('active');
     if (mode === 'playing' && !paused) pause();
   });
 
-  for (const id of ['left', 'right', 'burst']) {
+  for (const id of ['left', 'right', 'burst', 'boost']) {
     const el = $(id);
     el.addEventListener('pointerdown', e => {
       e.preventDefault();
       try { el.setPointerCapture(e.pointerId); } catch {}
-      if (id === 'burst') {
+      if (id === 'boost') {
+        if (!el.disabled) boostPointers.add(e.pointerId);
+      } else if (id === 'burst') {
         if (!el.disabled) {
           releaseQueued = true;
           el.classList.add('active');
@@ -426,10 +446,23 @@
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
       el.addEventListener(type, e => {
         pointers.delete(e.pointerId);
+        if (id === 'boost') boostPointers.delete(e.pointerId);
         el.classList.remove('active');
       });
     }
   }
+
+  $('boost').addEventListener('keydown', e => {
+    if (e.code !== 'Space' && e.code !== 'Enter') return;
+    e.preventDefault(); e.stopPropagation();
+    if (!$('boost').disabled) boostPointers.add('keyboard');
+  });
+  $('boost').addEventListener('keyup', e => {
+    if (e.code !== 'Space' && e.code !== 'Enter') return;
+    e.preventDefault(); e.stopPropagation();
+    boostPointers.delete('keyboard');
+  });
+  $('boost').addEventListener('blur', () => boostPointers.delete('keyboard'));
 
   canvas.addEventListener('pointerdown', e => {
     if (mode !== 'playing' || paused) return;
@@ -449,20 +482,21 @@
   });
 
   function currentClearance() {
-    const c = G.canyon(state.level, state.y);
+    const c = G.canyonAt(state, state.y);
     return Math.min(state.x - c.left, c.right - state.x) - G.RADIUS;
   }
 
   function currentLateralWind() {
-    if (state.level.id >= 7 && state.y > 500 && state.y < G.END_Y - 100) {
+    const localY = state.y - state.originY;
+    if (state.level.id >= 7 && localY > 500 && localY < G.END_Y - 100) {
       const pulse = state.level.id < 15 ? 0.10 : 0.19;
-      return pulse * Math.sin((state.ticks + state.seed % 97) / 43 + state.y / 182);
+      return pulse * Math.sin((state.ticks + state.seed % 97) / 43 + localY / 182);
     }
     return 0;
   }
 
   function sync() {
-    const progPct = Math.min(100, Math.max(0, (state.y / G.END_Y) * 100));
+    const progPct = Math.min(100, Math.max(0, ((state.y - state.originY) / G.END_Y) * 100));
     const remainSec = Math.max(0, 60 - state.ticks / 60);
     const clearance = currentClearance();
     const isGrazing = mode === 'playing' && clearance > 0 && clearance < 58;
@@ -535,6 +569,12 @@
     }
 
     burstBtn.disabled = mode !== 'playing' || paused || !state.charge;
+    const boosting = mode === 'playing' && !paused && !state.lift && (keys.has('KeyB') || boostPointers.size > 0);
+    const boostBtn = $('boost');
+    boostBtn.disabled = mode !== 'playing' || paused;
+    boostBtn.classList.toggle('active', boosting);
+    boostBtn.setAttribute('aria-pressed', String(boosting));
+    if ($('pendingHint') && boosting && isGrazing) $('pendingHint').textContent = '▼ 부스트 스침 ×2!';
 
     // Scene top label & lateral wind badge
     const sLabel = $('sceneLabel');
@@ -551,13 +591,16 @@
     } else if (clearance < 22) {
       sLabel.textContent = '⚠ 암벽 충돌 위험! 중앙으로 조향하세요';
       sLabel.dataset.state = 'danger';
+    } else if (boosting) {
+      sLabel.textContent = '▼ 급강하 중 · 암벽 스침 점수 2배';
+      sLabel.dataset.state = 'boost';
     } else if (state.pending > 0) {
       sLabel.textContent = isGrazing
         ? `⚡ 암벽 스침 +${state.pending} · 벽에서 멀어지면 확정!`
         : `⚡ 미확정 +${state.pending} · 조금만 더 중앙으로 이동하세요!`;
       sLabel.dataset.state = 'graze';
     } else {
-      const remM = Math.max(0, Math.round((G.END_Y - state.y) / 10));
+      const remM = Math.max(0, Math.round((state.originY + G.END_Y - state.y) / 10));
       sLabel.textContent = remM <= 45 ? `🏁 출구 관문 ${remM}m 앞!` : '↓ 출구를 향해 활공';
       sLabel.dataset.state = 'normal';
     }
@@ -655,7 +698,7 @@
     ctx.strokeStyle = 'rgba(180, 225, 235, 0.18)';
     ctx.beginPath();
     for (let y = top; y <= bottom; y += 16) {
-      const c = G.canyon(state.level, y);
+      const c = G.canyonAt(state, y);
       const cx = c.center - cameraX, cy = y - cameraY;
       if (y === top) ctx.moveTo(cx, cy);
       else ctx.lineTo(cx, cy);
@@ -669,13 +712,13 @@
     for (const side of ['left', 'right']) {
       ctx.beginPath();
       for (let y = top; y <= bottom; y += 16) {
-        const c = G.canyon(state.level, y);
+        const c = G.canyonAt(state, y);
         const outerX = (side === 'left' ? c.left + G.RADIUS : c.right - G.RADIUS) - cameraX;
         if (y === top) ctx.moveTo(outerX, y - cameraY);
         else ctx.lineTo(outerX, y - cameraY);
       }
       for (let y = bottom; y >= top; y -= 16) {
-        const c = G.canyon(state.level, y);
+        const c = G.canyonAt(state, y);
         const innerX = (side === 'left' ? c.left + G.RADIUS + 58 : c.right - G.RADIUS - 58) - cameraX;
         ctx.lineTo(innerX, y - cameraY);
       }
@@ -693,7 +736,7 @@
       for (const side of ['left', 'right']) {
         ctx.beginPath();
         for (let y = top; y <= bottom; y += 16) {
-          const c = G.canyon(state.level, y);
+          const c = G.canyonAt(state, y);
           const bx = (side === 'left' ? c.left + G.RADIUS + 72 : c.right - G.RADIUS - 72) - cameraX;
           if (y === top) ctx.moveTo(bx, y - cameraY);
           else ctx.lineTo(bx, y - cameraY);
@@ -709,13 +752,13 @@
       ctx.beginPath();
       if (side === 'left') {
         ctx.moveTo(-40, -30);
-        ctx.lineTo(G.canyon(state.level, top).left - cameraX, top - cameraY);
+        ctx.lineTo(G.canyonAt(state, top).left - cameraX, top - cameraY);
       } else {
         ctx.moveTo(W + 40, -30);
-        ctx.lineTo(G.canyon(state.level, top).right - cameraX, top - cameraY);
+        ctx.lineTo(G.canyonAt(state, top).right - cameraX, top - cameraY);
       }
       for (let y = top + 12; y <= bottom; y += 12) {
-        ctx.lineTo(G.canyon(state.level, y)[side] - cameraX, y - cameraY);
+        ctx.lineTo(G.canyonAt(state, y)[side] - cameraX, y - cameraY);
       }
       ctx.lineTo(side === 'left' ? -40 : W + 40, H + 30);
       ctx.closePath();
@@ -739,7 +782,7 @@
       ctx.strokeStyle = 'rgba(165, 205, 220, 0.11)';
       ctx.lineWidth = 2;
       for (let sy = firstStrataY; sy <= bottom + 80; sy += 80) {
-        const edgeX = G.canyon(state.level, sy)[side] - cameraX;
+        const edgeX = G.canyonAt(state, sy)[side] - cameraX;
         const screenY = sy - cameraY;
         ctx.beginPath();
         ctx.moveTo(edgeX, screenY);
@@ -750,7 +793,7 @@
       // Inner dark cliff bevel step
       ctx.beginPath();
       for (let y = top; y <= bottom; y += 16) {
-        const c = G.canyon(state.level, y);
+        const c = G.canyonAt(state, y);
         const inset = (side === 'left' ? c.left - 22 : c.right + 22) - cameraX;
         if (y === top) ctx.moveTo(inset, y - cameraY);
         else ctx.lineTo(inset, y - cameraY);
@@ -763,7 +806,7 @@
       // High-contrast outer physical wall edge stroke
       ctx.beginPath();
       for (let y = top; y <= bottom; y += 12) {
-        const wx = G.canyon(state.level, y)[side] - cameraX;
+        const wx = G.canyonAt(state, y)[side] - cameraX;
         if (y === top) ctx.moveTo(wx, y - cameraY);
         else ctx.lineTo(wx, y - cameraY);
       }
@@ -780,7 +823,7 @@
     for (const side of ['left', 'right']) {
       ctx.beginPath();
       for (let y = top; y <= bottom; y += 12) {
-        const c = G.canyon(state.level, y);
+        const c = G.canyonAt(state, y);
         const x = (side === 'left' ? c.left + G.RADIUS : c.right - G.RADIUS) - cameraX;
         if (y === top) ctx.moveTo(x, y - cameraY);
         else ctx.lineTo(x, y - cameraY);
@@ -791,7 +834,7 @@
 
     // 7. Updraft Wind Circles (Cyan-Mint Emerald, clearly distinct from rocks & exit)
     for (const w of state.level.winds) {
-      const y = w.y - cameraY;
+      const y = state.originY + w.y - cameraY;
       if (y < -80 || y > H + 80) continue;
       const x = G.canyon(state.level, w.y).center + w.offset - cameraX;
 
@@ -849,7 +892,7 @@
 
     // 8. Moving Rock Hazards (Crimson-Coral Faceted Boulders + Oscillation Track + Offscreen Warning)
     for (const h of state.level.hazards) {
-      const y = h.y - cameraY;
+      const y = state.originY + h.y - cameraY;
       const centerAtY = G.canyon(state.level, h.y).center - cameraX;
       const trackCenter = centerAtY + h.side * 94;
       const x = G.obstacleX(state.level, h, state.ticks) - cameraX;
@@ -921,9 +964,9 @@
     }
 
     // 9. Exit Gate Beacon (END_Y = 2700)
-    const exitY = G.END_Y - cameraY;
+    const exitY = state.originY + G.END_Y - cameraY;
     if (exitY > -60 && exitY < H + 80) {
-      const c = G.canyon(state.level, G.END_Y);
+      const c = G.canyonAt(state, state.originY + G.END_Y);
       const leftX = c.left - cameraX, rightX = c.right - cameraX, centerX = c.center - cameraX;
       ctx.save();
       const gateGlow = ctx.createLinearGradient(0, exitY - 45, 0, exitY + 15);
@@ -952,7 +995,7 @@
 
     // 10. Player Glider, Wingtip Trails, Near-Wall Tether & Banking Popups
     const px = state.x - cameraX, py = state.y - cameraY;
-    const cNow = G.canyon(state.level, state.y);
+    const cNow = G.canyonAt(state, state.y);
     const leftDist = state.x - cNow.left - G.RADIUS;
     const rightDist = cNow.right - state.x - G.RADIUS;
     const minClearance = Math.min(leftDist, rightDist);
@@ -1113,7 +1156,7 @@
     }
 
     // 11. Right-Side Vertical Altitude & Canyon Minimap Gauge
-    const prog = Math.min(1, Math.max(0, state.y / G.END_Y));
+    const prog = Math.min(1, Math.max(0, (state.y - state.originY) / G.END_Y));
     const gx = W - 18, gy = 20, gh = H - 40;
     ctx.save();
     ctx.fillStyle = 'rgba(8, 22, 36, 0.78)';
@@ -1214,12 +1257,14 @@
           + mouseDirection;
         const clampedSteer = Math.max(-1, Math.min(1, steer));
         const oldCharge = state.charge, oldLift = state.lift, oldBank = state.bank;
-        G.step(state, { steer: clampedSteer, release: releaseQueued });
+        G.step(state, { steer: clampedSteer, release: releaseQueued, boost: keys.has('KeyB') || boostPointers.size > 0 });
         releaseQueued = false;
         stepVisuals(oldCharge, oldLift, oldBank, clampedSteer);
+        const isNewRecord = state.completedLevel && state.bank > (bestScores[state.completedLevel] || 0);
+        if (state.completedLevel) recordGate(state.completedLevel);
         accumulator -= G.STEP;
         if (state.status !== 'playing') {
-          finish();
+          finish(isNewRecord);
           break;
         }
       }

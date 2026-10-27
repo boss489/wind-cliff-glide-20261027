@@ -111,6 +111,10 @@
           <small id="burstSub">충전 필요 · Space</small>
         </span>
       </button>
+      <button id="boost" class="boost" type="button" aria-label="누르고 있는 동안 급강하, 벽 스침 점수 2배" aria-pressed="false">
+        <span class="ctrl-icon" aria-hidden="true">▼</span>
+        <span class="ctrl-text"><b>급강하 부스트</b><small>누르고 유지 · B · 스침 ×2</small></span>
+      </button>
       <button id="right" class="steer-btn" type="button" aria-label="오른쪽 조향">
         <span class="ctrl-text">
           <b>오른쪽 조향</b>
@@ -121,8 +125,8 @@
     </div>
 
     <footer class="bottombar">
-      <span><b>조작</b> ← → / A D 조향 · Space / 우클릭 기류 해제 · P / Esc 일시정지</span>
-      <span><b>득점 규칙</b> 암벽 가까이 날면 임시 점수 적립 → 안전 거리로 벗어나면 확정</span>
+      <span><b>조작</b> ← → / A D 조향 · Space / 우클릭 기류 해제 · B / 부스트 버튼 길게 누르기 · P / Esc 일시정지</span>
+      <span><b>득점 규칙</b> 암벽 가까이 날면 임시 점수 적립(부스트 중 ×2) → 안전 거리로 벗어나면 확정</span>
     </footer>
   </main>
   <script src="game.js"></script>
