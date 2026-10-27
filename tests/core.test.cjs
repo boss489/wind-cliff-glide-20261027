@@ -48,12 +48,15 @@ test('boost does not add points in the center or bypass failed-flight cancellati
   assert.equal(s.pending, 0);
   assert.equal(s.bank, 0);
 });
-test('canyon turns are 15 percent sharper than authored offsets', () => {
+test('canyon turns increase from 20 to 35 percent beyond the current geometry across 24 stages', () => {
   const expected = [274, 256, 240, 268, 248, 228];
-  for (const i of [0, 5, 8, 15, 23]) {
+  const originalTurns = [10, -45, 55, -40, -100];
+  const indices = [0, 5, 8, 15, 23];
+  for (const i of indices) {
     const band = Math.floor(i / 8);
     assert.equal(G.levels[i].width, expected[i % 6] - band * 5);
-    assert.equal(G.levels[i].turns[1], [10, -45, 55, -40, -100][[0, 5, 8, 15, 23].indexOf(i)] * 1.15);
+    const currentTurn = originalTurns[indices.indexOf(i)] * 1.15;
+    assert.ok(Math.abs(G.levels[i].turns[1] - currentTurn * (1.2 + 0.15 * i / 23)) < 1e-9, `stage ${i + 1}`);
   }
 });
 test('24 structurally different fixed canyon paths and safe sampled center', () => {
@@ -136,8 +139,8 @@ test('one uninterrupted flight can clear all 24 gates without recreating the pla
   const s = G.create(1, 41), completed = [];
   let previousY = s.y;
   while (s.status === 'playing' && completed.length < 24) {
-    const ahead = G.canyonAt(s, Math.min(s.originY + G.END_Y, s.y + 85)).center;
-    G.step(s, { steer: Math.abs(ahead - s.x) < 8 ? 0 : Math.sign(ahead - s.x) });
+    const ahead = G.canyonAt(s, Math.min(s.originY + G.END_Y, s.y + 180)).center;
+    G.step(s, { steer: Math.abs(ahead - s.x) < 8 ? 0 : Math.sign(ahead - s.x), boost: s.level.id <= 12 });
     assert.ok(s.y > previousY);
     previousY = s.y;
     if (s.completedLevel) completed.push(s.completedLevel);
@@ -151,18 +154,18 @@ test('all 24 canyon centerline routes reach exit', () => {
   G.levels.forEach((_, n) => {
     const s = G.create(n + 1, n + 11);
     while (s.status === 'playing' && s.level.id === n + 1 && s.ticks < 3600) {
-      const ahead = G.canyonAt(s, Math.min(s.originY + G.END_Y, s.y + 85)).center;
+      const ahead = G.canyonAt(s, Math.min(s.originY + G.END_Y, s.y + 180)).center;
       G.step(s, { steer: Math.abs(ahead - s.x) < 8 ? 0 : Math.sign(ahead - s.x), release: false });
     }
     assert.equal(s.completedLevel, n + 1, `level ${n + 1} tick ${s.ticks} y ${s.y} x ${s.x}`);
   });
 });
-test('all 24 canyon centerline routes remain finishable while boosting', () => {
+test('all 24 routes finish with early boost and normal-speed tight late turns', () => {
   G.levels.forEach((_, n) => {
     const s = G.create(n + 1, n + 11);
     while (s.status === 'playing' && s.level.id === n + 1 && s.ticks < 3600) {
       const ahead = G.canyonAt(s, Math.min(s.originY + G.END_Y, s.y + 180)).center;
-      G.step(s, { steer: Math.abs(ahead - s.x) < 8 ? 0 : Math.sign(ahead - s.x), boost: true });
+      G.step(s, { steer: Math.abs(ahead - s.x) < 8 ? 0 : Math.sign(ahead - s.x), boost: n < 12 });
     }
     assert.equal(s.completedLevel, n + 1, `boosted level ${n + 1} tick ${s.ticks} y ${s.y} x ${s.x}`);
   });

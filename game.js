@@ -18,7 +18,7 @@
     [0,100,25,-105,-30,110,35,-100,-25,0], [0,-100,-20,105,25,-110,-35,100,30,0]
   ];
   const levels = routes.map((turns, i) => ({
-    id: i + 1, turns: turns.map(turn => turn * 1.15),
+    id: i + 1, turns: turns.map(turn => turn * 1.15 * (1.2 + 0.15 * i / 23)),
     width: [274,256,240,268,248,228][i % 6] - Math.floor(i / 8) * 5,
     windType: i < 6 ? '고요' : i < 14 ? '맥동' : '횡풍',
     winds: [650, 1550, 2220].map((y, k) => ({ y, offset: k === 1 ? (i % 2 ? 12 : -12) : 0, used: false })),
