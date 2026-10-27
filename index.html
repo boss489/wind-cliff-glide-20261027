@@ -1,9 +1,130 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101c32"><title>바람절벽 활공</title><link rel="stylesheet" href="style.css"></head>
-<body><main class="shell">
-<header><div class="brand"><span class="mark">◇</span><div><small>하늘에 새긴 길</small><h1>바람절벽 활공</h1></div></div><button id="pause" class="text-button" aria-label="일시정지" hidden>Ⅱ <span>일시정지</span></button></header>
-<section class="hud" aria-label="비행 정보"><div><small>협곡</small><strong id="stage">01 / 24</strong></div><div><small>남은 시간</small><strong id="time">60.0초</strong></div><div><small>확정 점수</small><strong id="bank">0</strong></div><div><small>스침 · 미확정</small><strong id="pending">+0</strong></div><div class="wind-meter"><small>저장 기류</small><strong id="charge">비어 있음</strong></div></section>
-<div class="scene"><canvas id="game" aria-label="협곡 비행 화면" tabindex="0"></canvas><div class="scene-label" id="sceneLabel">↓ 출구를 향해 활공</div><div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="overlayTitle"><div class="panel" id="panel"></div></div></div>
-<div class="controls" aria-label="터치 조작"><button id="left" aria-label="왼쪽 조향">◀ <span>왼쪽</span></button><button id="burst" class="burst" aria-label="저장 기류 해제">✦ <span>기류 해제</span></button><button id="right" aria-label="오른쪽 조향"><span>오른쪽</span> ▶</button></div>
-<footer><span>← → / A D 조향　·　Space 기류 해제　·　P 일시정지</span><span>벽에 가까울수록 높은 점수 · 벗어나야 확정</span></footer>
-</main><script src="game.js"></script><script src="app.js"></script></body></html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#091526">
+  <title>바람절벽 활공</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">
+          <svg viewBox="0 0 36 36" width="28" height="28" focusable="false">
+            <path d="M18 4L32 18L18 32L4 18Z" fill="none" stroke="currentColor" stroke-width="2.2" opacity="0.45"/>
+            <path d="M18 27L5 13L13.5 15.5L18 7L22.5 15.5L31 13Z" fill="currentColor"/>
+          </svg>
+        </span>
+        <div class="brand-text">
+          <small>하늘에 새긴 길 · CANYON GLIDE</small>
+          <h1>바람절벽 활공</h1>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="motionToggle" class="icon-button" type="button" aria-label="움직임 줄이기 전환" title="움직임 효과 전환">
+          <span class="icon-glyph" id="motionIcon">≈</span>
+          <span class="btn-text" id="motionText">모션 표준</span>
+        </button>
+        <button id="soundToggle" class="icon-button" type="button" aria-label="효과음 켜기 또는 끄기" title="효과음 전환">
+          <span class="icon-glyph" id="soundIcon">🔊</span>
+          <span class="btn-text" id="soundText">효과음 켜짐</span>
+        </button>
+        <button id="pause" class="text-button" type="button" aria-label="일시정지" hidden>
+          <span class="pause-icon" id="pauseIcon">Ⅱ</span>
+          <span class="pause-label" id="pauseLabel">일시정지</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="hud" aria-label="비행 정보">
+      <div class="hud-card" id="hudStageCard">
+        <div class="hud-head">
+          <small>협곡</small>
+          <span class="hud-badge" id="windBadge">고요</span>
+        </div>
+        <strong id="stage">01 / 24</strong>
+        <div class="hud-bar" aria-hidden="true"><span id="stageBar" style="width:0%"></span></div>
+      </div>
+
+      <div class="hud-card" id="hudTimeCard">
+        <div class="hud-head">
+          <small>남은 시간</small>
+          <span class="hud-sub" id="timeState">안정</span>
+        </div>
+        <strong id="time">60.0초</strong>
+        <div class="hud-bar time-bar" aria-hidden="true"><span id="timeBar" style="width:100%"></span></div>
+      </div>
+
+      <div class="hud-card" id="hudBankCard">
+        <div class="hud-head">
+          <small>확정 점수</small>
+          <span class="hud-sub" id="bankDelta">★ 안전 적립</span>
+        </div>
+        <strong id="bank">0</strong>
+      </div>
+
+      <div class="hud-card" id="hudPendingCard">
+        <div class="hud-head">
+          <small>스침 · 미확정</small>
+          <span class="hud-sub" id="pendingHint">벽 접근 시 적립</span>
+        </div>
+        <strong id="pending">+0</strong>
+        <div class="hud-bar pending-bar" aria-hidden="true"><span id="pendingBar" style="width:0%"></span></div>
+      </div>
+
+      <div class="hud-card wind-meter" id="hudWindCard">
+        <div class="hud-head">
+          <small>저장 기류</small>
+          <span class="hud-sub" id="chargeHint">기류 원 통과</span>
+        </div>
+        <strong id="charge">○ 비어 있음</strong>
+        <div class="hud-bar wind-bar" aria-hidden="true"><span id="chargeBar" style="width:0%"></span></div>
+      </div>
+    </section>
+
+    <div class="scene" id="sceneContainer">
+      <canvas id="game" aria-label="협곡 비행 화면" tabindex="0"></canvas>
+      <div class="scene-hud" aria-hidden="true">
+        <div class="scene-label" id="sceneLabel">↓ 출구를 향해 활공</div>
+        <div class="wind-indicator" id="windIndicator" hidden></div>
+      </div>
+      <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="overlayTitle">
+        <div class="panel" id="panel"></div>
+      </div>
+    </div>
+
+    <div class="controls" aria-label="터치 조작">
+      <button id="left" class="steer-btn" type="button" aria-label="왼쪽 조향">
+        <span class="ctrl-arrow" aria-hidden="true">◀</span>
+        <span class="ctrl-text">
+          <b>왼쪽 조향</b>
+          <small>A / ←</small>
+        </span>
+      </button>
+      <button id="burst" class="burst" type="button" aria-label="저장 기류 해제">
+        <span class="ctrl-icon" id="burstIcon" aria-hidden="true">✦</span>
+        <span class="ctrl-text">
+          <b id="burstLabel">기류 해제</b>
+          <small id="burstSub">충전 필요 · Space</small>
+        </span>
+      </button>
+      <button id="right" class="steer-btn" type="button" aria-label="오른쪽 조향">
+        <span class="ctrl-text">
+          <b>오른쪽 조향</b>
+          <small>D / →</small>
+        </span>
+        <span class="ctrl-arrow" aria-hidden="true">▶</span>
+      </button>
+    </div>
+
+    <footer class="bottombar">
+      <span><b>조작</b> ← → / A D 조향 · Space / 우클릭 기류 해제 · P / Esc 일시정지</span>
+      <span><b>득점 규칙</b> 암벽 가까이 날면 임시 점수 적립 → 안전 거리로 벗어나면 확정</span>
+    </footer>
+  </main>
+  <script src="game.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
