@@ -31,6 +31,7 @@
   let paused = false;
 
   let keys = new Set(), pointers = new Map(), boostPointers = new Set(), mouseDirection = 0, releaseQueued = false;
+  let joystickPointer = null, joystickSteer = 0;
   let last = 0, accumulator = 0, sound;
   let soundEnabled = true;
   let reducedMotion = Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -109,6 +110,7 @@
     `<button type="button" data-action="${action}" class="${primary ? 'primary' : ''}">${label}</button>`;
 
   function show(html) {
+    resetJoystick();
     panel.innerHTML = html;
     overlay.hidden = false;
     sceneContainer.classList.add('has-overlay');
@@ -262,6 +264,7 @@
     pointers.clear();
     boostPointers.clear();
     mouseDirection = 0;
+    resetJoystick();
     releaseQueued = false;
     accumulator = 0;
     paused = false;
@@ -281,7 +284,7 @@
   function pause() {
     if (mode !== 'playing') return;
     paused = !paused;
-    if (paused) { boostPointers.clear(); keys.delete('KeyB'); }
+    if (paused) { boostPointers.clear(); keys.delete('KeyB'); pointers.clear(); mouseDirection = 0; resetJoystick(); }
     setPauseButtonState(true, paused);
     playSfx('ui');
     if (paused) {
@@ -422,8 +425,51 @@
     pointers.clear();
     boostPointers.clear();
     mouseDirection = 0;
+    resetJoystick();
     for (const id of ['left', 'right', 'burst', 'boost']) $(id)?.classList.remove('active');
     if (mode === 'playing' && !paused) pause();
+  });
+
+  const joystick = document.getElementById('joystick');
+  const joystickTrack = joystick.querySelector('.joystick-track');
+  const joystickKnob = document.getElementById('joystickKnob');
+  function setJoystick(value) {
+    joystickSteer = value;
+    const radius = Math.max(1, (joystickTrack.clientWidth - joystickKnob.offsetWidth) / 2);
+    joystickKnob.style.transform = `translateX(${value * radius}px)`;
+    joystick.setAttribute('aria-valuenow', String(Math.round(value * 100)));
+    joystick.setAttribute('aria-valuetext', value === 0 ? '중앙' : `${value < 0 ? '왼쪽' : '오른쪽'} ${Math.round(Math.abs(value) * 100)}%`);
+  }
+  function resetJoystick() {
+    joystickPointer = null;
+    setJoystick(0);
+  }
+  function updateJoystick(e) {
+    const box = joystickTrack.getBoundingClientRect();
+    const radius = Math.max(1, (box.width - joystickKnob.offsetWidth) / 2);
+    setJoystick(WindCliffJoystick.steer(e.clientX, e.clientY, box.left + box.width / 2, box.top + box.height / 2, radius));
+  }
+  joystick.addEventListener('pointerdown', (e) => {
+    if (mode !== 'playing' || paused || joystickPointer !== null) return;
+    e.preventDefault();
+    joystickPointer = e.pointerId;
+    try { joystick.setPointerCapture(e.pointerId); } catch {}
+    updateJoystick(e);
+  });
+  joystick.addEventListener('pointermove', (e) => {
+    if (e.pointerId === joystickPointer) { e.preventDefault(); updateJoystick(e); }
+  });
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+    joystick.addEventListener(type, (e) => { if (e.pointerId === joystickPointer) resetJoystick(); });
+  }
+  joystick.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (mode === 'playing' && !paused) setJoystick(Math.max(-1, Math.min(1, joystickSteer + (e.key === 'ArrowLeft' ? -0.25 : 0.25))));
+  });
+  joystick.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); resetJoystick(); }
   });
 
   for (const id of ['left', 'right', 'burst', 'boost']) {
@@ -1254,7 +1300,7 @@
         const steer = (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0)
           - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0)
           + [...pointers.values()].reduce((v, id) => v + (id === 'left' ? -1 : 1), 0)
-          + mouseDirection;
+          + mouseDirection + joystickSteer;
         const clampedSteer = Math.max(-1, Math.min(1, steer));
         const oldCharge = state.charge, oldLift = state.lift, oldBank = state.bank;
         G.step(state, { steer: clampedSteer, release: releaseQueued, boost: keys.has('KeyB') || boostPointers.size > 0 });

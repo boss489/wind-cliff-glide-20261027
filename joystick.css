@@ -1,0 +1,50 @@
+.joystick { display: none; }
+
+@media (pointer: coarse) {
+  .controls {
+    grid-template-columns: minmax(100px, 124px) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "joystick wind boost";
+    gap: 8px;
+    align-items: center;
+  }
+  .controls #left, .controls #right { display: none; }
+  .controls .joystick { grid-area: joystick; }
+  .controls #burst { grid-area: wind; }
+  .controls #boost { grid-area: boost; }
+  .joystick {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 90px;
+    border: 1px solid rgba(154, 198, 214, .65);
+    border-radius: 14px;
+    background: linear-gradient(180deg, #1e425b, #142f44);
+    color: #f2f8fa;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .joystick:focus-visible { outline: 3px solid #f6d571; outline-offset: 2px; }
+  .joystick-track {
+    width: 82px;
+    height: 54px;
+    border-radius: 28px;
+    background: #081b2c;
+    border: 2px solid #87b6c6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+  .joystick-track span {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 36% 30%, #ffedae, #e2ad4f 68%, #9e622b);
+    box-shadow: 0 2px 5px #07101b;
+    flex: none;
+  }
+  .joystick-label { font-size: 10px; font-weight: 700; white-space: nowrap; }
+}

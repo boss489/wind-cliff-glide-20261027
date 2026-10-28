@@ -48,20 +48,27 @@ test('boost does not add points in the center or bypass failed-flight cancellati
   assert.equal(s.pending, 0);
   assert.equal(s.bank, 0);
 });
-test('canyon turns increase from 20 to 35 percent beyond the current geometry across 24 stages', () => {
+test('turn progression stops at stage 22; last two use its full centerline', () => {
   const expected = [274, 256, 240, 268, 248, 228];
-  const originalTurns = [10, -45, 55, -40, -100];
-  const indices = [0, 5, 8, 15, 23];
+  const originalTurns = [10, -45, 55, -40, -50];
+  const indices = [0, 5, 8, 15, 21];
   for (const i of indices) {
-    const band = Math.floor(i / 8);
-    assert.equal(G.levels[i].width, expected[i % 6] - band * 5);
-    const currentTurn = originalTurns[indices.indexOf(i)] * 1.15;
-    assert.ok(Math.abs(G.levels[i].turns[1] - currentTurn * (1.2 + 0.15 * i / 23)) < 1e-9, `stage ${i + 1}`);
+    assert.equal(G.levels[i].width, expected[i % 6] - Math.floor(i / 8) * 5);
+    assert.ok(Math.abs(G.levels[i].turns[1] - originalTurns[indices.indexOf(i)] * 1.15 * (1.2 + 0.15 * i / 23)) < 1e-9, `stage ${i + 1}`);
   }
+  for (const i of [22, 23]) {
+    assert.equal(JSON.stringify(G.levels[i].turns), JSON.stringify(G.levels[21].turns));
+    assert.equal(G.levels[i].hazards.length, 4);
+    assert.equal(JSON.stringify(G.levels[i].hazards.slice(0, 3).map(h => h.y)), JSON.stringify([1000, 1870, 2400]));
+    assert.equal(G.levels[i].hazards[3].y, 480);
+    assert.equal(G.levels[i].width, expected[i % 6] - 10);
+  }
+  for (let i = 14; i <= 21; i++) assert.equal(G.levels[i].hazards.length, 3);
+  for (let i = 0; i < 14; i++) assert.equal(G.levels[i].hazards.length, 0);
 });
-test('24 structurally different fixed canyon paths and safe sampled center', () => {
+test('22 unique authored canyon centerlines and safe sampled center through 24 stages', () => {
   assert.equal(G.levels.length, 24);
-  assert.equal(new Set(G.levels.map(l => JSON.stringify(l.turns))).size, 24);
+  assert.equal(new Set(G.levels.map(l => JSON.stringify(l.turns))).size, 22);
   G.levels.forEach((l, i) => {
     assert.equal(l.turns.length, 10);
     for (let y = 0; y <= G.END_Y; y += 15) {

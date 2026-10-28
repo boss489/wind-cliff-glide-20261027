@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#091526">
   <title>바람절벽 활공</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="joystick.css">
 </head>
 <body>
   <main class="shell">
@@ -97,6 +98,10 @@
     </div>
 
     <div class="controls" aria-label="터치 조작">
+      <div id="joystick" class="joystick" role="slider" tabindex="0" aria-label="좌우 조향 조이스틱" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" aria-valuetext="중앙" aria-orientation="horizontal">
+        <div class="joystick-track" aria-hidden="true"><span id="joystickKnob"></span></div>
+        <span class="joystick-label">◀ 조향 ▶</span>
+      </div>
       <button id="left" class="steer-btn" type="button" aria-label="왼쪽 조향">
         <span class="ctrl-arrow" aria-hidden="true">◀</span>
         <span class="ctrl-text">
@@ -125,11 +130,12 @@
     </div>
 
     <footer class="bottombar">
-      <span><b>조작</b> ← → / A D 조향 · Space / 우클릭 기류 해제 · B / 부스트 버튼 길게 누르기 · P / Esc 일시정지</span>
+      <span><b>조작</b> 모바일: 좌우 조이스틱 · PC: ← → / A D · Space / 우클릭 기류 해제 · B / 부스트 버튼 길게 누르기 · P / Esc 일시정지</span>
       <span><b>득점 규칙</b> 암벽 가까이 날면 임시 점수 적립(부스트 중 ×2) → 안전 거리로 벗어나면 확정</span>
     </footer>
   </main>
   <script src="game.js"></script>
+  <script src="joystick.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
